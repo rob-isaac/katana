@@ -1808,6 +1808,28 @@ private:
   std::shared_ptr<GraphTopology> GetOriginalTopology(
       const PropertyGraph* pg) const noexcept;
 
+  katana::Result<std::shared_ptr<CondensedTypeIDMap>> GetEdgeTypeIndex(
+      const PropertyGraph* pg) const noexcept;
+
+  katana::Result<std::shared_ptr<EdgeShuffleTopology>> GetEdgeShuffTopo(
+      const PropertyGraph* pg,
+      const tsuba::RDGTopology::TransposeKind& tpose_kind,
+      const tsuba::RDGTopology::EdgeSortKind& sort_kind) const noexcept;
+
+  katana::Result<std::shared_ptr<ShuffleTopology>> GetShuffTopo(
+      const PropertyGraph* pg,
+      const tsuba::RDGTopology::TransposeKind& tpose_kind,
+      const tsuba::RDGTopology::NodeSortKind& node_sort_todo,
+      const tsuba::RDGTopology::EdgeSortKind& edge_sort_todo) const noexcept;
+
+  katana::Result<std::shared_ptr<EdgeTypeAwareTopology>> GetEdgeTypeAwareTopo(
+      const PropertyGraph* pg,
+      const tsuba::RDGTopology::TransposeKind& tpose_kind) const noexcept;
+
+  katana::Result<std::shared_ptr<ProjectedTopology>> GetProjectedGraphTopo(
+      const PropertyGraph* pg, const std::vector<std::string>& node_properties,
+      const std::vector<std::string>& edge_properties) const noexcept;
+
   std::shared_ptr<CondensedTypeIDMap> BuildOrGetEdgeTypeIndex(
       const PropertyGraph* pg) noexcept;
 
