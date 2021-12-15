@@ -1620,13 +1620,13 @@ class BasicPropGraphViewWrapper : public Topo {
 
 public:
   explicit BasicPropGraphViewWrapper(
-      PropertyGraph* pg, const Topo& topo) noexcept
+      const PropertyGraph* pg, const Topo& topo) noexcept
       : Base(topo), prop_graph_(pg) {}
 
   const PropertyGraph* property_graph() const noexcept { return prop_graph_; }
 
 private:
-  PropertyGraph* prop_graph_;
+  const PropertyGraph* prop_graph_;
 };
 
 namespace internal {
@@ -1649,7 +1649,7 @@ template <>
 struct PGViewBuilder<PGViewDefault> {
   template <typename ViewCache>
   static PGViewDefault BuildView(
-      PropertyGraph* pg, ViewCache& viewCache) noexcept {
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
     auto topo = viewCache.GetOriginalTopology(pg);
     return PGViewDefault{pg, DefaultPGTopology{topo}};
   }
@@ -1666,6 +1666,15 @@ struct PGViewBuilder<PGViewTransposed> {
 
     return PGViewTransposed{pg, TransposedTopology(transposed_topo)};
   }
+  template <typename ViewCache>
+  static katana::Result<PGViewTransposed> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto transposed_topo = KATANA_CHECKED(viewCache.GetEdgeShuffTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kYes,
+        tsuba::RDGTopology::EdgeSortKind::kAny));
+
+    return PGViewTransposed{pg, TransposedTopology(transposed_topo)};
+  }
 };
 
 template <>
@@ -1676,6 +1685,17 @@ struct PGViewBuilder<PGViewBiDirectional> {
     auto tpose_topo = viewCache.BuildOrGetEdgeShuffTopo(
         pg, tsuba::RDGTopology::TransposeKind::kYes,
         tsuba::RDGTopology::EdgeSortKind::kAny);
+    auto bidir_topo =
+        SimpleBiDirTopology{viewCache.GetOriginalTopology(pg), tpose_topo};
+
+    return PGViewBiDirectional{pg, bidir_topo};
+  }
+  template <typename ViewCache>
+  static katana::Result<PGViewBiDirectional> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto tpose_topo = KATANA_CHECKED(viewCache.GetEdgeShuffTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kYes,
+        tsuba::RDGTopology::EdgeSortKind::kAny));
     auto bidir_topo =
         SimpleBiDirTopology{viewCache.GetOriginalTopology(pg), tpose_topo};
 
@@ -1696,6 +1716,17 @@ struct PGViewBuilder<PGViewUnDirected> {
 
     return PGViewUnDirected{pg, undir_topo};
   }
+  template <typename ViewCache>
+  static katana::Result<internal::PGViewUnDirected> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto tpose_topo = KATANA_CHECKED(viewCache.GetEdgeShuffTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kYes,
+        tsuba::RDGTopology::EdgeSortKind::kAny));
+    auto undir_topo =
+        UndirectedTopology{viewCache.GetOriginalTopology(pg), tpose_topo};
+
+    return PGViewUnDirected{pg, undir_topo};
+  }
 };
 
 template <>
@@ -1706,6 +1737,16 @@ struct PGViewBuilder<PGViewEdgesSortedByDestID> {
     auto sorted_topo = viewCache.BuildOrGetEdgeShuffTopo(
         pg, tsuba::RDGTopology::TransposeKind::kNo,
         tsuba::RDGTopology::EdgeSortKind::kSortedByDestID);
+
+    return PGViewEdgesSortedByDestID{
+        pg, EdgesSortedByDestTopology{sorted_topo}};
+  }
+  template <typename ViewCache>
+  static katana::Result<PGViewEdgesSortedByDestID> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto sorted_topo = KATANA_CHECKED(viewCache.GetEdgeShuffTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kNo,
+        tsuba::RDGTopology::EdgeSortKind::kSortedByDestID));
 
     return PGViewEdgesSortedByDestID{
         pg, EdgesSortedByDestTopology{sorted_topo}};
@@ -1725,6 +1766,17 @@ struct PGViewBuilder<PGViewNodesSortedByDegreeEdgesSortedByDestID> {
     return PGViewNodesSortedByDegreeEdgesSortedByDestID{
         pg, NodesSortedByDegreeEdgesSortedByDestIDTopology{sorted_topo}};
   }
+  template <typename ViewCache>
+  static katana::Result<PGViewNodesSortedByDegreeEdgesSortedByDestID> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto sorted_topo = KATANA_CHECKED(viewCache.GetShuffTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kNo,
+        tsuba::RDGTopology::NodeSortKind::kSortedByDegree,
+        tsuba::RDGTopology::EdgeSortKind::kSortedByDestID));
+
+    return PGViewNodesSortedByDegreeEdgesSortedByDestID{
+        pg, NodesSortedByDegreeEdgesSortedByDestIDTopology{sorted_topo}};
+  }
 };
 
 template <>
@@ -1740,17 +1792,38 @@ struct PGViewBuilder<PGViewEdgeTypeAwareBiDir> {
     return PGViewEdgeTypeAwareBiDir{
         pg, EdgeTypeAwareBiDirTopology{out_topo, in_topo}};
   }
+  template <typename ViewCache>
+  static katana::Result<PGViewEdgeTypeAwareBiDir> BuildView(
+      const PropertyGraph* pg, const ViewCache& viewCache) noexcept {
+    auto out_topo = KATANA_CHECKED(viewCache.GetEdgeTypeAwareTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kNo));
+    auto in_topo = KATANA_CHECKED(viewCache.GetEdgeTypeAwareTopo(
+        pg, tsuba::RDGTopology::TransposeKind::kYes));
+
+    return PGViewEdgeTypeAwareBiDir{
+        pg, EdgeTypeAwareBiDirTopology{out_topo, in_topo}};
+  }
 };
 
 template <>
 struct PGViewBuilder<PGViewProjectedGraph> {
   template <typename ViewCache>
   static PGViewProjectedGraph BuildView(
-      const PropertyGraph* pg, const std::vector<std::string>& node_types,
+      PropertyGraph* pg, const std::vector<std::string>& node_types,
       const std::vector<std::string>& edge_types,
       ViewCache& viewCache) noexcept {
     auto topo =
         viewCache.BuildOrGetProjectedGraphTopo(pg, node_types, edge_types);
+
+    return PGViewProjectedGraph{pg, topo};
+  }
+  template <typename ViewCache>
+  static katana::Result<PGViewProjectedGraph> BuildView(
+      const PropertyGraph* pg, const std::vector<std::string>& node_types,
+      const std::vector<std::string>& edge_types,
+      const ViewCache& viewCache) noexcept {
+    auto topo = KATANA_CHECKED(
+        viewCache.GetProjectedGraphTopo(pg, node_types, edge_types));
 
     return PGViewProjectedGraph{pg, topo};
   }
@@ -1794,15 +1867,30 @@ public:
     return internal::PGViewBuilder<PGView>::BuildView(pg, *this);
   }
 
-  katana::Result<std::vector<tsuba::RDGTopology>> ToRDGTopology();
-
   template <typename PGView>
   PGView BuildView(
-      const PropertyGraph* pg, const std::vector<std::string>& node_types,
+      PropertyGraph* pg, const std::vector<std::string>& node_types,
       const std::vector<std::string>& edge_types) noexcept {
     return internal::PGViewBuilder<PGView>::BuildView(
         pg, node_types, edge_types, *this);
   }
+
+  template <typename PGView>
+  Result<PGView> BuildViewFromExistingTopologies(
+      const PropertyGraph* pg) const noexcept {
+    return KATANA_CHECKED(
+        internal::PGViewBuilder<PGView>::BuildView(pg, *this));
+  }
+
+  template <typename PGView>
+  Result<PGView> BuildViewFromExistingTopologies(
+      const PropertyGraph* pg, const std::vector<std::string>& node_types,
+      const std::vector<std::string>& edge_types) const noexcept {
+    return KATANA_CHECKED(internal::PGViewBuilder<PGView>::BuildView(
+        pg, node_types, edge_types, *this));
+  }
+
+  katana::Result<std::vector<tsuba::RDGTopology>> ToRDGTopology();
 
 private:
   std::shared_ptr<GraphTopology> GetOriginalTopology(
